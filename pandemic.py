@@ -1,11 +1,12 @@
 import random
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.image
 import cv2
 
 print ("Pandemic simulation")
 
-WRITE_VIDEO = False
+WRITE_VIDEO = True
 
 class Human:
     virus_state = 0
@@ -50,10 +51,10 @@ for h in range(100):
 
 
 def spred_virus(id, new_infected):
-    spread = random.randint(0,100)
+    spread = random.random()
     person = population[id//x_size][id%y_size]
-    spread *= (1 - person.immunity) 
-    if spread > 50 and person.virus_state == 0:
+    p = 0.1 * (1 - person.immunity) 
+    if spread < p and person.virus_state == 0:
         population[id//x_size][id%y_size].virus_state = 1
         new_infected.append(id)
         #print ("new virus case")
@@ -65,9 +66,9 @@ def random_spread(contacts, new_infected):
         x = id//x_size
         y = id%y_size
         if population[x][y].virus_state == 0:
-            spread = random.randint(0, 100)
-            spread*= (1-population[x][y].immunity)
-            if spread > 90:
+            spread = random.random()
+            p = 0.001 * (1 - population[x][y].immunity) 
+            if spread < p:
                 population[x][y].virus_state = 1
                 new_infected.append(id)
         i += 1
@@ -78,9 +79,9 @@ def heal(id):
     x = id//x_size
     y = id%y_size
     if population[x][y].virus_state == 1:
-        death = random.randint(0, 1000)
-        death *= population[x][y].age / 80
-        if death > 900:
+        death = random.random()
+        p =  (1 - population[x][y].immunity) * population[x][y].age / 80 / 50
+        if death < p:
             population[x][y].virus_state = 3
             infected.remove(id)
             dead.append(id)
@@ -123,7 +124,7 @@ for step in range(500):
     print ("step:", step, "number of infected", len(infected), "healed",len(healed), "dead", len(dead))
     new_infected = []
     for id in infected:
-        if population[id//x_size][id%y_size].virus_days < 5:
+        if population[id//x_size][id%y_size].virus_days < 8:
             for i in range(3):
                 for j in range(3):
                     n_id_x = (id//x_size + (i-1))%x_size
@@ -131,7 +132,7 @@ for step in range(500):
                     n_id = n_id_x *x_size + n_id_y 
                     if id != n_id:
                         spred_virus(n_id, new_infected)
-            random_spread(100, new_infected)
+            random_spread(50, new_infected)
         heal(id)
         
     for new_id in new_infected:
@@ -150,13 +151,27 @@ for step in range(500):
 if WRITE_VIDEO:
     out.release()
 
-#plot graphics
-figure1 = plt.figure()
-plt.plot(infected_dynamics, 'red')
-plt.plot(healed_dynamics, 'green')
-plt.plot(dead_dynamics, 'black')
-figure2 = plt.figure()
+with open("infected_dynamics.txt", 'w') as f:
+    for x in infected_dynamics:
+        f.write(str(x) + '\n')
+
+with open("healed_dynamics.txt", 'w') as f:
+    for x in healed_dynamics:
+        f.write(str(x) + '\n')
+
+with open("dead_dynamics.txt", 'w') as f:
+    for x in dead_dynamics:
+        f.write(str(x) + '\n')
+
 update_view()
-plt.imshow(virus_img)
+plt.imsave('final_state.png', virus_img)
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(50,100))
+
+ax1.plot(infected_dynamics, 'red')
+ax1.plot(healed_dynamics, 'green')
+ax1.plot(dead_dynamics, 'black')
+
+ax2.imshow(virus_img)
 plt.show()
     
