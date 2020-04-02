@@ -7,6 +7,8 @@ import cv2
 print ("Pandemic simulation")
 
 WRITE_VIDEO = True
+x_size = 500
+y_size = 500
 
 class Human:
     virus_state = 0
@@ -19,38 +21,35 @@ class Human:
         self.age = age
         self.immunity = immunity
 
-#init population
-x_size = 500
-y_size = 500
-population = np.ndarray(shape = (x_size,y_size), dtype = Human)
-population_count = len(population) * len(population[0])
 
-
-for i in range(len(population)):
-    for j in range(len(population[i])):
-        imm = random.gauss(0.5, 0.1)
-        age = random.randint(1, 80)
-        population[i][j] = Human(0, age, imm) #add correct distribution
-        #population[i][j].age = random.randint(1, 80)
-        #population[i][j].immunity = random.randint(0, 100)
+def init_population(x, y):
+    
+    population = np.ndarray(shape = (x, y), dtype = Human)
+    
+    for i in range(len(population)):
+        for j in range(len(population[i])):
+            imm = random.gauss(0.5, 0.1)
+            age = random.randint(1, 80)
+            population[i][j] = Human(0, age, imm) #add correct distribution
+            #population[i][j].age = random.randint(1, 80)
+            #population[i][j].immunity = random.randint(0, 100)
+    
+    return population
 
 #start epidemy
 
-infected = []
-dead = []
-healed = []
-
-infected_dynamics = []
-healed_dynamics = []
-dead_dynamics = []
-
-for h in range(100):
-    id = random.randint(0, population_count)
-    population[id//x_size][id%y_size].virus_state = 1
-    infected.append(id)
+def start_epidemy(population, n):
+    infected = []
+    population_count = x_size*y_size
+    for h in range(n):
+        id = random.randint(0, population_count)
+        population[id//x_size][id%y_size].virus_state = 1
+        infected.append(id)
+    return infected
 
 
-def spred_virus(id, new_infected):
+
+def spred_virus(population, id, new_infected):
     spread = random.random()
     person = population[id//x_size][id%y_size]
     p = 0.1 * (1 - person.immunity) 
@@ -59,7 +58,7 @@ def spred_virus(id, new_infected):
         new_infected.append(id)
         #print ("new virus case")
 
-def random_spread(contacts, new_infected):
+def random_spread(population, contacts, new_infected):
     i = 0
     while i < contacts:
         id = random.randint(0, x_size*y_size - 1)
@@ -73,9 +72,7 @@ def random_spread(contacts, new_infected):
                 new_infected.append(id)
         i += 1
 
-        
-
-def heal(id):
+def heal(population, id, infected, healed, dead):
     x = id//x_size
     y = id%y_size
     if population[x][y].virus_state == 1:
@@ -92,16 +89,7 @@ def heal(id):
                 infected.remove(id)
                 healed.append(id)
 
-    
-
-virus_img = np.ndarray([x_size, y_size, 3], dtype=np.uint8)
-virus_img[:,:] = [255, 255, 255]
-
-
-if WRITE_VIDEO:
-    out = cv2.VideoWriter('project.avi',cv2.VideoWriter_fourcc('M','J','P','G'), 15, (x_size, y_size))
-
-def update_view(video_out = None):   
+def update_view(population, virus_img, video_out = None):   
     for i in range(len(virus_img)):
         for j in range(len(virus_img)):
             if population[i][j].virus_state == 0:
@@ -120,7 +108,7 @@ def update_view(video_out = None):
     #plt.draw()
     #plt.pause(0.002)
 
-for step in range(500):
+def virus_step(step, population, infected, healed, dead, infected_dynamics, healed_dynamics, dead_dynamics, virus_img = 0, video_out = 0):
     print ("step:", step, "number of infected", len(infected), "healed",len(healed), "dead", len(dead))
     new_infected = []
     for id in infected:
@@ -131,9 +119,9 @@ for step in range(500):
                     n_id_y = (id%x_size + j-1)%y_size
                     n_id = n_id_x *x_size + n_id_y 
                     if id != n_id:
-                        spred_virus(n_id, new_infected)
-            random_spread(50, new_infected)
-        heal(id)
+                        spred_virus(population, n_id, new_infected)
+            random_spread(population, 50, new_infected)
+        heal(population, id, infected, healed, dead)
         
     for new_id in new_infected:
         infected.append(new_id)
@@ -142,36 +130,72 @@ for step in range(500):
     healed_dynamics.append(len(healed))
     dead_dynamics.append(len(dead))
 
-    if len(infected) == 0:
-        break
-#update picture
+    #update picture
     if WRITE_VIDEO:
-        update_view(out)
+        update_view(population, virus_img, video_out)
 
-if WRITE_VIDEO:
-    out.release()
 
-with open("infected_dynamics.txt", 'w') as f:
-    for x in infected_dynamics:
-        f.write(str(x) + '\n')
+def main():    
+    population = init_population(x_size, y_size)
 
-with open("healed_dynamics.txt", 'w') as f:
-    for x in healed_dynamics:
-        f.write(str(x) + '\n')
+    infected = start_epidemy(population, 100)
+    dead = []
+    healed = []
 
-with open("dead_dynamics.txt", 'w') as f:
-    for x in dead_dynamics:
-        f.write(str(x) + '\n')
+    infected_dynamics = []
+    healed_dynamics = []
+    dead_dynamics = []
 
-update_view()
-plt.imsave('final_state.png', virus_img)
+    
+    virus_img = np.ndarray([x_size, y_size, 3], dtype=np.uint8)
 
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(50,100))
+    virus_img[:,:] = [255, 255, 255]
 
-ax1.plot(infected_dynamics, 'red')
-ax1.plot(healed_dynamics, 'green')
-ax1.plot(dead_dynamics, 'black')
 
-ax2.imshow(virus_img)
-plt.show()
+    if WRITE_VIDEO:
+        out = cv2.VideoWriter('project.avi',cv2.VideoWriter_fourcc('M','J','P','G'), 15, (x_size, y_size))
+
+        for step in range(500):
+            virus_step(step, population, 
+                       infected, healed, dead,
+                       infected_dynamics, healed_dynamics,dead_dynamics, virus_img = virus_img, video_out=out)
+            if len(infected) == 0:
+                break
+        out.release()
+    
+    else: 
+        for step in range(500):
+            virus_step(step, population,
+                       infected, healed, dead,
+                       infected_dynamics, healed_dynamics,dead_dynamics)
+            if len(infected) == 0:
+                break
+
+    with open("infected_dynamics.txt", 'w') as f:
+        for x in infected_dynamics:
+            f.write(str(x) + '\n')
+
+    with open("healed_dynamics.txt", 'w') as f:
+        for x in healed_dynamics:
+            f.write(str(x) + '\n')
+
+    with open("dead_dynamics.txt", 'w') as f:
+        for x in dead_dynamics:
+            f.write(str(x) + '\n')
+
+    update_view(population, virus_img)
+    plt.imsave('final_state.png', virus_img)
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(50,100))
+
+    ax1.plot(infected_dynamics, 'red')
+    ax1.plot(healed_dynamics, 'green')
+    ax1.plot(dead_dynamics, 'black')
+
+    ax2.imshow(virus_img)
+    plt.show()
+    
+
+if __name__ == "__main__":
+    main()
     
